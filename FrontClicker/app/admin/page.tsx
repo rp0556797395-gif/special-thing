@@ -48,7 +48,7 @@ export default function AdminPage() {
                   value={serverUrl}
                   onChange={(e) => setServerUrl(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl bg-muted border border-border focus:ring-2 focus:ring-primary outline-none"
-                  placeholder="http://localhost:8080"
+                   placeholder={serverUrl}
                   required
                 />
               </div>

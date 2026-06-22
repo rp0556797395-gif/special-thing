@@ -7,7 +7,7 @@ import { QuizGame } from "@/components/quiz/quiz-game"
 function GameContent() {
   const searchParams = useSearchParams()
   
-  const serverUrl = searchParams.get("server") || "http://localhost:8080"
+  const serverUrl = searchParams.get("server") || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
   const eventName = searchParams.get("event") || "יום הולדת 70 פנירי"
   const eventSlogan = searchParams.get("slogan") || "Test Your Knowledge!"
   const adminKey = searchParams.get("adminKey")

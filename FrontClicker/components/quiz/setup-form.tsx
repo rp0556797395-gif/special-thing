@@ -9,7 +9,7 @@ interface SetupFormProps {
 }
 
 export function SetupForm({ onStart }: SetupFormProps) {
-  const [serverUrl, setServerUrl] = useState("http://localhost:8080")
+  const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080")
   const [eventName, setEventName] = useState("Quiz Night 2026")
   const [adminKey, setAdminKey] = useState("ADMIN123")
   const [isConnecting, setIsConnecting] = useState(false)
@@ -105,7 +105,7 @@ export function SetupForm({ onStart }: SetupFormProps) {
                 }}
                 onFocus={(e) => e.target.style.borderColor = "#ec4899"}
                 onBlur={(e) => e.target.style.borderColor = "#e5e7eb"}
-                placeholder="http://localhost:8080"
+                placeholder={serverUrl}
                 required
               />
             </div>

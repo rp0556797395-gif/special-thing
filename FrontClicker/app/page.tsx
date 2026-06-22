@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation"
 
 export default function Home() {
   const router = useRouter()
-  const [serverUrl, setServerUrl] = useState("http://localhost:8080")
-  const [eventName, setEventName] = useState("QUIZ NIGHT 2025")
+const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080");  const [eventName, setEventName] = useState("QUIZ NIGHT 2025")
   const [eventSlogan, setEventSlogan] = useState("Test Your Knowledge!")
   const [adminKey, setAdminKey] = useState("")
 
@@ -16,7 +15,7 @@ export default function Home() {
       event: eventName,
       slogan: eventSlogan,
     })
-    router.push("http://localhost:3000/game?server=http%3A%2F%2Flocalhost%3A8080&event=QUIZ+NIGHT&slogan=Test+Your+Knowledge&adminKey=ADMIN123")
+    router.push(`/game?server=${encodeURIComponent(serverUrl)}&event=QUIZ+NIGHT&slogan=Test+Your+Knowledge&adminKey=ADMIN123`);
   }
 
   const handleAdminPanel = () => {
@@ -160,7 +159,7 @@ export default function Home() {
                 type="text"
                 value={serverUrl}
                 onChange={(e) => setServerUrl(e.target.value)}
-                placeholder="http://localhost:8080"
+                placeholder={serverUrl}
                 style={{
                   width: "100%",
                   padding: "14px 16px",
