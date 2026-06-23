@@ -9,7 +9,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/questions")
-@CrossOrigin(origins = "http://localhost:3000", allowCredentials = "true") // השורה הזו פותרת את השגיאה!
+@CrossOrigin(origins = {"http://localhost:3000", "https://front-clicker-service.onrender.com"}, allowCredentials = "true")
 public class QuestionController {
 
     @Autowired
