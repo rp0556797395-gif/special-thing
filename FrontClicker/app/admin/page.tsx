@@ -6,7 +6,7 @@ import { AdminPanel } from "@/components/quiz/admin-panel"
 import { FloatingShapes } from "@/components/quiz/floating-shapes"
 
 export default function AdminPage() {
-  const [serverUrl, setServerUrl] = useState("")
+  const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080")
   const [isConfigured, setIsConfigured] = useState(false)
 
   if (!isConfigured) {
