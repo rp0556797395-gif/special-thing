@@ -25,7 +25,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
     public void registerStompEndpoints(StompEndpointRegistry registry) {
         // זוהי נקודת החיבור הראשונית של ה-React לשרת
         registry.addEndpoint("/ws-quiz")
-                .setAllowedOriginPatterns("*") // מאפשר גישה מכל דומיין (חשוב לפיתוח)
+                .setAllowedOrigins("http://localhost:3000", "https://front-clicker-service.onrender.com")// מאפשר גישה מכל דומיין (חשוב לפיתוח)
                 .withSockJS();
     }
 }

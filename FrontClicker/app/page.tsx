@@ -5,29 +5,21 @@ import { useRouter } from "next/navigation"
 
 export default function Home() {
   const router = useRouter()
-const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080");  const [eventName, setEventName] = useState("QUIZ NIGHT 2025")
+  const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080");  
   const [eventSlogan, setEventSlogan] = useState("Test Your Knowledge!")
-  const [adminKey, setAdminKey] = useState("")
 
   const handleStartGame = () => {
+    // מעביר את המשתמש למסך המשחק הפומבי (ללא מפתחות אדמין!)
     const params = new URLSearchParams({
       server: serverUrl,
-      event: eventName,
       slogan: eventSlogan,
     })
-    router.push(`/game?server=${encodeURIComponent(serverUrl)}&event=QUIZ+NIGHT&slogan=Test+Your+Knowledge&adminKey=ADMIN123`);
+    router.push(`/game?${params.toString()}`);
   }
 
   const handleAdminPanel = () => {
-    if (!adminKey.trim()) {
-      alert("Please enter the Admin Key")
-      return
-    }
-    const params = new URLSearchParams({
-      server: serverUrl,
-      key: adminKey,
-    })
-    router.push(`/admin?${params.toString()}`)
+    // פשוט מעביר למסך הניהול - שם כבר מחכה לו מסך נעילת הסיסמה החדש שבנינו!
+    router.push(`/admin`)
   }
 
   return (
@@ -52,42 +44,9 @@ const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "h
           }}
         />
         {/* Floating circles */}
-        <div
-          style={{
-            position: "absolute",
-            top: "10%",
-            left: "10%",
-            width: 200,
-            height: 200,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.1)",
-            animation: "float 6s ease-in-out infinite",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            top: "60%",
-            right: "15%",
-            width: 150,
-            height: 150,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.15)",
-            animation: "float 8s ease-in-out infinite reverse",
-          }}
-        />
-        <div
-          style={{
-            position: "absolute",
-            bottom: "20%",
-            left: "20%",
-            width: 100,
-            height: 100,
-            borderRadius: "50%",
-            background: "rgba(255,255,255,0.1)",
-            animation: "float 7s ease-in-out infinite",
-          }}
-        />
+        <div style={{ position: "absolute", top: "10%", left: "10%", width: 200, height: 200, borderRadius: "50%", background: "rgba(255,255,255,0.1)", animation: "float 6s ease-in-out infinite" }} />
+        <div style={{ position: "absolute", top: "60%", right: "15%", width: 150, height: 150, borderRadius: "50%", background: "rgba(255,255,255,0.15)", animation: "float 8s ease-in-out infinite reverse" }} />
+        <div style={{ position: "absolute", bottom: "20%", left: "20%", width: 100, height: 100, borderRadius: "50%", background: "rgba(255,255,255,0.1)", animation: "float 7s ease-in-out infinite" }} />
       </div>
 
       {/* MAIN CONTAINER - Centered content */}
@@ -129,137 +88,23 @@ const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "h
           >
             LIVE QUIZ SETUP
           </h1>
-          <p
-            style={{
-              textAlign: "center",
-              color: "#666",
-              marginBottom: 32,
-              fontSize: 16,
-            }}
-          >
-            Configure your quiz game settings
+          <p style={{ textAlign: "center", color: "#666", marginBottom: 32, fontSize: 16 }}>
+            הגדרות המשחק שלך
           </p>
 
           {/* Form Fields */}
           <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
             {/* Server URL */}
             <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: 8,
-                }}
-              >
-                Server URL
+              <label style={{ display: "block", fontSize: 14, fontWeight: 600, color: "#333", marginBottom: 8 }}>
+                כתובת השרת
               </label>
               <input
                 type="text"
                 value={serverUrl}
                 onChange={(e) => setServerUrl(e.target.value)}
                 placeholder={serverUrl}
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  fontSize: 16,
-                  border: "2px solid #e0e0e0",
-                  borderRadius: 12,
-                  outline: "none",
-                  transition: "border-color 0.2s",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            {/* Event Name */}
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: 8,
-                }}
-              >
-                Event Name
-              </label>
-              <input
-                type="text"
-                value={eventName}
-                onChange={(e) => setEventName(e.target.value)}
-                placeholder="QUIZ NIGHT 2025"
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  fontSize: 16,
-                  border: "2px solid #e0e0e0",
-                  borderRadius: 12,
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            {/* Event Slogan */}
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: 8,
-                }}
-              >
-                Event Slogan
-              </label>
-              <input
-                type="text"
-                value={eventSlogan}
-                onChange={(e) => setEventSlogan(e.target.value)}
-                placeholder="Test Your Knowledge!"
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  fontSize: 16,
-                  border: "2px solid #e0e0e0",
-                  borderRadius: 12,
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
-              />
-            </div>
-
-            {/* Admin Key */}
-            <div>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: 14,
-                  fontWeight: 600,
-                  color: "#333",
-                  marginBottom: 8,
-                }}
-              >
-                Admin Key (for admin panel)
-              </label>
-              <input
-                type="password"
-                value={adminKey}
-                onChange={(e) => setAdminKey(e.target.value)}
-                placeholder="Enter admin key..."
-                style={{
-                  width: "100%",
-                  padding: "14px 16px",
-                  fontSize: 16,
-                  border: "2px solid #e0e0e0",
-                  borderRadius: 12,
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
+                style={{ width: "100%", padding: "14px 16px", fontSize: 16, border: "2px solid #e0e0e0", borderRadius: 12, outline: "none", boxSizing: "border-box" }}
               />
             </div>
           </div>
@@ -281,16 +126,10 @@ const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "h
                 boxShadow: "0 10px 40px -10px rgba(102, 126, 234, 0.5)",
                 transition: "transform 0.2s, box-shadow 0.2s",
               }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = "scale(1.02)"
-                e.currentTarget.style.boxShadow = "0 15px 50px -10px rgba(102, 126, 234, 0.6)"
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = "scale(1)"
-                e.currentTarget.style.boxShadow = "0 10px 40px -10px rgba(102, 126, 234, 0.5)"
-              }}
+              onMouseOver={(e) => { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.boxShadow = "0 15px 50px -10px rgba(102, 126, 234, 0.6)" }}
+              onMouseOut={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.boxShadow = "0 10px 40px -10px rgba(102, 126, 234, 0.5)" }}
             >
-              START GAME
+              START GAME (למסך הראשי)
             </button>
 
             <button
@@ -307,18 +146,10 @@ const [serverUrl, setServerUrl] = useState(process.env.NEXT_PUBLIC_API_URL || "h
                 cursor: "pointer",
                 transition: "transform 0.2s, background 0.2s, color 0.2s",
               }}
-              onMouseOver={(e) => {
-                e.currentTarget.style.transform = "scale(1.02)"
-                e.currentTarget.style.background = "#667eea"
-                e.currentTarget.style.color = "#fff"
-              }}
-              onMouseOut={(e) => {
-                e.currentTarget.style.transform = "scale(1)"
-                e.currentTarget.style.background = "#fff"
-                e.currentTarget.style.color = "#667eea"
-              }}
+              onMouseOver={(e) => { e.currentTarget.style.transform = "scale(1.02)"; e.currentTarget.style.background = "#667eea"; e.currentTarget.style.color = "#fff" }}
+              onMouseOut={(e) => { e.currentTarget.style.transform = "scale(1)"; e.currentTarget.style.background = "#fff"; e.currentTarget.style.color = "#667eea" }}
             >
-              ADMIN PANEL
+              ADMIN PANEL (התחברות מנהל)
             </button>
           </div>
         </div>

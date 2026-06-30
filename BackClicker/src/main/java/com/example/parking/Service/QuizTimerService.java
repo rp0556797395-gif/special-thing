@@ -2,8 +2,11 @@ package com.example.parking.Service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskScheduler;
 import org.springframework.stereotype.Service;
-import java.util.concurrent.*;
+
+import java.time.Duration;
+import java.util.concurrent.ScheduledFuture;
 
 @Service
 public class QuizTimerService {
@@ -11,35 +14,44 @@ public class QuizTimerService {
     @Autowired
     private SimpMessagingTemplate messagingTemplate;
 
-    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private final ThreadPoolTaskScheduler taskScheduler;
     private ScheduledFuture<?> currentTimer;
 
-    public void startTimer(int seconds) {
-        // אם כבר רץ טיימר משאלה קודמת - נעצור אותו
-        if (currentTimer != null && !currentTimer.isDone()) {
-            currentTimer.cancel(true);
-        }
+    // קונסטרקטור שמאתחל את ה-Scheduler המובנה של Spring בצורה בטוחה
+    public QuizTimerService() {
+        this.taskScheduler = new ThreadPoolTaskScheduler();
+        this.taskScheduler.setPoolSize(1);
+        this.taskScheduler.setThreadNamePrefix("QuizTimer-");
+        this.taskScheduler.initialize();
+    }
 
-        // משתנה עזר כדי שנוכל להפחית ממנו בתוך הלולאה
-        final int[] timeLeft = {seconds};
+    // מתודה מסונכרנת למניעת ריצת טיימרים כפולים במקביל
+    public synchronized void startTimer(int seconds) {
+        // עצירת טיימר קודם במידה וקיים
+        stopTimer();
 
-        // פקודה שאומרת לשרת: "כל שנייה תעשה את מה שכתוב כאן"
-        currentTimer = scheduler.scheduleAtFixedRate(() -> {
+        // שידור מיידי של השנייה הראשונה כדי שהמסך לא ימתין
+        messagingTemplate.convertAndSend("/topic/timer", seconds);
+        System.out.println("Time left: " + seconds);
+
+        final int[] timeLeft = {seconds - 1};
+
+        // הפעלת לולאת זמן שרצה בדיוק כל שנייה אחת
+        currentTimer = taskScheduler.scheduleAtFixedRate(() -> {
             if (timeLeft[0] >= 0) {
-                // שידור הזמן לכל השחקנים דרך ה-WebSocket
                 messagingTemplate.convertAndSend("/topic/timer", timeLeft[0]);
-                System.out.println("Time left: " + timeLeft[0]); // להדפסה בטרמינל שלך
+                System.out.println("Time left: " + timeLeft[0]);
                 timeLeft[0]--;
             } else {
                 stopTimer();
             }
-        }, 0, 1, TimeUnit.SECONDS);
+        }, Duration.ofSeconds(1));
     }
 
-    public void stopTimer() {
-        if (currentTimer != null) {
+    // עצירה בטוחה של הטיימר הפעיל
+    public synchronized void stopTimer() {
+        if (currentTimer != null && !currentTimer.isCancelled()) {
             currentTimer.cancel(true);
-            // אפשר לשלוח הודעה שהזמן נגמר
             messagingTemplate.convertAndSend("/topic/timer", "TIME_UP");
         }
     }

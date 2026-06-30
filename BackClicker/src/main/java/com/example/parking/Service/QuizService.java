@@ -57,23 +57,27 @@ public class QuizService {
     // =====================
     // NEXT QUESTION (ONLY ONE!)
     // =====================
+
+    // =====================
+    // NEXT QUESTION (ONLY ONE!)
+    // =====================
     public void nextQuestion() {
         if (!gameActive || activeQuestions.isEmpty()) return;
 
         // בדיקה אם יש שאלה נוספת ברשימה
         if (currentGlobalQuestionIndex + 1 < activeQuestions.size()) {
-            currentGlobalQuestionIndex++;
+            currentGlobalQuestionIndex++; // קידום אחד ויחיד!
             long nextQuestionId = getCurrentQuestion().getId();
 
             // אתחול סטטיסטיקה לשאלה החדשה אם היא עדיין לא קיימת במאפ
             initializeStatsForQuestion(nextQuestionId);
+            questionVersion++; // מקדמים את הגרסה רק אם באמת עברנו שאלה
         } else {
             System.out.println("No more questions. Ending game.");
             gameActive = false;
         }
 
-        currentGlobalQuestionIndex++;
-        questionVersion++;
+        // מחיקתי מפה את הקידום הכפול שהיה: currentGlobalQuestionIndex++
     }
 
     private void initializeStatsForQuestion(long questionId) {
@@ -102,10 +106,8 @@ public class QuizService {
     public int processAnswer(String phone, String answer, boolean correct) {
 
         // 🔥 חישוב נקודות:
-        // אם התשובה נכונה (correct == true) → מוסיפים 10 נקודות
-        // אחרת → 0 נקודות
+        // אם התשובה נכונה (correct == true) → מוסיפים 50 נקודות, אחרת → 0 נקודות
         int pointsToAdd = correct ? 50 : 0;
-
 
         // 🔥 שליפת המשתמש לפי מספר טלפון
         // אם לא קיים → יצירת משתמש חדש עם ניקוד התחלתי 0
@@ -118,34 +120,44 @@ public class QuizService {
         // 🔥 הוספת הנקודות שחושבו למשתמש
         p.setScore(p.getScore() + pointsToAdd);
 
-        // 🔥 שמירת אינדקס השאלה הנוכחית
-        // לצורך מעקב אחרי התקדמות השחקן
+        // 🔥 שמירת אינדקס השאלה הנוכחית לצורך מעקב אחרי התקדמות השחקן
         p.setCurrentQuestionIndex(currentGlobalQuestionIndex);
 
         // 🔥 שמירת הנתונים המעודכנים לדאטהבייס
         repository.save(p);
 
-        int qIndex = currentGlobalQuestionIndex;
+        // 🔥 עדכון הסטטיסטיקה לפי ה-ID של השאלה (מתוקן!)
+        Question currentQuestion = getCurrentQuestion();
+        if (currentQuestion != null) {
+            // המרה בטוחה של ה-ID מ-Long ל-int
+            int currentQuestionId = currentQuestion.getId().intValue();
 
-        statsMap.putIfAbsent(qIndex, new QuestionStatsDTO());
+            // יצירת אובייקט סטטיסטיקה חדש לשאלה הזו אם הוא עדיין לא קיים במאפ
+            statsMap.putIfAbsent(currentQuestionId, new QuestionStatsDTO());
 
-        QuestionStatsDTO stats = statsMap.get(qIndex);
+            // שליפת הסטטיסטיקה המעודכנת של השאלה הנוכחית
+            QuestionStatsDTO stats = statsMap.get(currentQuestionId);
 
-        switch (answer) {
-            case "1" -> stats.setAnswer1(stats.getAnswer1() + 1);
-            case "2" -> stats.setAnswer2(stats.getAnswer2() + 1);
-            case "3" -> stats.setAnswer3(stats.getAnswer3() + 1);
-            case "4" -> stats.setAnswer4(stats.getAnswer4() + 1);
+            // הוספת הצבעה בהתאם לתשובה שהתקבלה מהטלפון
+            switch (answer) {
+                case "1" -> stats.setAnswer1(stats.getAnswer1() + 1);
+                case "2" -> stats.setAnswer2(stats.getAnswer2() + 1);
+                case "3" -> stats.setAnswer3(stats.getAnswer3() + 1);
+                case "4" -> stats.setAnswer4(stats.getAnswer4() + 1);
+            }
         }
+
         // 🔥 החזרת הניקוד המעודכן של המשתמש
         return p.getScore();
     }
-
     public Question getCurrentQuestion() {
         if (currentGlobalQuestionIndex < 0) return null;
         return activeQuestions.get(currentGlobalQuestionIndex);
     }
 
+    public QuestionStatsDTO getStatsForQuestion(int questionId) {
+        return statsMap.getOrDefault(questionId, new QuestionStatsDTO());
+    }
     public void resetGame() {
         gameActive = false;
         currentGlobalQuestionIndex = 0;

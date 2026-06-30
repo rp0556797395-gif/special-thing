@@ -8,15 +8,11 @@ function GameContent() {
   const searchParams = useSearchParams()
   
   const serverUrl = searchParams.get("server") || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
-  const eventName = searchParams.get("event") || "יום הולדת 70 פנירי"
-  const eventSlogan = searchParams.get("slogan") || "Test Your Knowledge!"
-  const adminKey = searchParams.get("adminKey")
+  const eventName = searchParams.get("event") || "Quiz Event"
   return (
     <QuizGame
       serverUrl={serverUrl}
       eventName={eventName}
-      eventSlogan={eventSlogan}
-      adminKey={adminKey || undefined}
     />
   )
 }
@@ -37,6 +33,7 @@ export default function GamePage() {
         Loading Quiz...
       </div>
     }>
+
       <GameContent />
     </Suspense>
   )

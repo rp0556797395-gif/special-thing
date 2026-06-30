@@ -40,7 +40,12 @@ export function AdminPanel({ serverUrl }: AdminPanelProps) {
 
   const fetchQuestions = async () => {
     try {
-      const response = await fetch(`${serverUrl}/api/questions/GetAll`)
+      const token = localStorage.getItem("adminToken");
+      const response = await fetch(`${serverUrl}/api/questions/GetAll`, {
+        headers: {
+          "Authorization": `Bearer ${token}`
+        }
+      })
       const data = await response.json()
       setQuestions(data)
     } catch (error) {
@@ -57,13 +62,17 @@ export function AdminPanel({ serverUrl }: AdminPanelProps) {
       if (editingQuestion?.id) {
         await fetch(`${serverUrl}/api/questions/update/${editingQuestion.id}`, {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}` 
+           },
           body: JSON.stringify(formData),
         })
       } else {
         await fetch(`${serverUrl}/api/questions/add`, {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json",
+            "Authorization": `Bearer ${token}` // הוספת הטוקן כאן!
+           },
           body: JSON.stringify(formData),
         })
       }
