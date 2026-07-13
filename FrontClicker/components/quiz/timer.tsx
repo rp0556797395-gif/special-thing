@@ -1,44 +1,25 @@
 "use client"
 
 import { motion, AnimatePresence } from "framer-motion"
-import { useEffect, useState } from "react"
+import { Pause } from "lucide-react"
 
 interface TimerProps {
-  seconds: number
-  isActive: boolean
-  onComplete?: () => void
+  // משך השאלה הכולל (למשל 20) - משמש רק לחישוב אחוז ההתקדמות של הטבעת
+  totalSeconds: number
+  // הזמן שנותר בפועל, כפי שמגיע משידור /topic/timer מה-QuizTimerService בשרת.
+  // זהו מקור האמת היחיד - אין יותר ספירה מקומית בדפדפן, ולכן כולם (מנהל ומשתתפים) רואים בדיוק אותו מספר
+  timeLeft: number
+  // רק לצורך ויזואלי (עמעום + אייקון פאוזה) - ההקפאה בפועל קורית כי השרת מפסיק לשלוח טיקים חדשים
+  isPaused?: boolean
 }
 
-export function Timer({ seconds, isActive, onComplete }: TimerProps) {
-  const [timeLeft, setTimeLeft] = useState(seconds)
-  const progress = (timeLeft / seconds) * 100
-  const isUrgent = timeLeft <= 5
-
-  useEffect(() => {
-    setTimeLeft(seconds)
-  }, [seconds])
-
-  useEffect(() => {
-    if (!isActive || timeLeft <= 0) {
-      if (timeLeft === 0) onComplete?.()
-      return
-    }
-
-    const interval = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 1) {
-          clearInterval(interval)
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
-
-    return () => clearInterval(interval)
-  }, [isActive, timeLeft, onComplete])
+export function Timer({ totalSeconds, timeLeft, isPaused = false }: TimerProps) {
+  const clampedTimeLeft = Math.max(0, Math.min(timeLeft, totalSeconds))
+  const progress = totalSeconds > 0 ? (clampedTimeLeft / totalSeconds) * 100 : 0
+  const isUrgent = clampedTimeLeft <= 5
 
   return (
-    <div className="relative flex flex-col items-center gap-4">
+    <div className={`relative flex flex-col items-center gap-4 transition-opacity duration-300 ${isPaused ? "opacity-60" : "opacity-100"}`}>
       {/* Circular timer */}
       <div className="relative w-32 h-32">
         <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
@@ -70,32 +51,45 @@ export function Timer({ seconds, isActive, onComplete }: TimerProps) {
             transition={{ duration: 0.5 }}
           />
         </svg>
-        
-        {/* Timer text */}
+
+        {/* Timer text / pause icon */}
         <AnimatePresence mode="wait">
-          <motion.div
-            key={timeLeft}
-            className="absolute inset-0 flex items-center justify-center"
-            initial={{ scale: 1.5, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.5, opacity: 0 }}
-            transition={{ duration: 0.2 }}
-          >
-            <span
-              className={`text-5xl font-bold ${
-                isUrgent ? "text-red-400" : "text-cyan-300"
-              }`}
-              style={{
-                textShadow: `0 0 20px ${isUrgent ? "#ff4466" : "#00ddff"}`,
-              }}
+          {isPaused ? (
+            <motion.div
+              key="paused"
+              className="absolute inset-0 flex items-center justify-center"
+              initial={{ scale: 1.3, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ duration: 0.2 }}
             >
-              {timeLeft}
-            </span>
-          </motion.div>
+              <Pause className="w-10 h-10 text-cyan-200" style={{ filter: "drop-shadow(0 0 10px #00ddff)" }} />
+            </motion.div>
+          ) : (
+            <motion.div
+              key={clampedTimeLeft}
+              className="absolute inset-0 flex items-center justify-center"
+              initial={{ scale: 1.5, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.5, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+            >
+              <span
+                className={`text-5xl font-bold ${
+                  isUrgent ? "text-red-400" : "text-cyan-300"
+                }`}
+                style={{
+                  textShadow: `0 0 20px ${isUrgent ? "#ff4466" : "#00ddff"}`,
+                }}
+              >
+                {clampedTimeLeft}
+              </span>
+            </motion.div>
+          )}
         </AnimatePresence>
 
-        {/* Pulsing ring when urgent */}
-        {isUrgent && (
+        {/* Pulsing ring when urgent (not while paused) */}
+        {isUrgent && !isPaused && (
           <motion.div
             className="absolute inset-0 rounded-full border-4 border-red-400"
             animate={{

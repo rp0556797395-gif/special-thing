@@ -38,7 +38,7 @@ public class PhoneQuizController {
     // =========================
     @GetMapping("/admin/start")
     public String startGame(@RequestParam(value = "key", required = false) String key) {
-      
+
 
         synchronized (gameLock) {
             quizService.startGame();
@@ -51,8 +51,40 @@ public class PhoneQuizController {
         return "Game Started";
     }
 
-    @GetMapping("/show-winner")
+    // =========================
+    // ⏸️ PAUSE GAME - עוצר את הטיימר האמיתי בשרת ומשדר PAUSED לכולם
+    // =========================
+    @GetMapping("/admin/pause")
+    public ResponseEntity<String> pauseGame(@RequestParam(value = "key", required = false) String key) {
+        synchronized (gameLock) {
+            quizTimerService.pauseTimer();
+            messagingTemplate.convertAndSend(
+                    "/topic/game-status",
+                    "{\"status\":\"PAUSED\"}"
+            );
+        }
+        return ResponseEntity.ok("Paused");
+    }
+
+    // =========================
+    // ▶️ RESUME GAME - ממשיך את הטיימר האמיתי בשרת מאותה נקודה ומשדר RESUMED לכולם
+    // =========================
+    @GetMapping("/admin/resume")
+    public ResponseEntity<String> resumeGame(@RequestParam(value = "key", required = false) String key) {
+        synchronized (gameLock) {
+            quizTimerService.resumeTimer();
+            messagingTemplate.convertAndSend(
+                    "/topic/game-status",
+                    "{\"status\":\"RESUMED\"}"
+            );
+        }
+        return ResponseEntity.ok("Resumed");
+    }
+
+    @GetMapping("/admin/show-winner")
     public ResponseEntity<String> showWinner(@RequestParam String key) {
+        System.out.println("WWWWWW''''' sent: ");
+
         messagingTemplate.convertAndSend("/topic/winner", "SHOW");
         return ResponseEntity.ok("Winner signal sent");
     }

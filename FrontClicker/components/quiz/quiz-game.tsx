@@ -2,6 +2,7 @@
 import { useState, useCallback, useEffect, useRef } from "react"
 import { motion, AnimatePresence } from "framer-motion"
 import { Howl, Howler } from "howler"
+import { Play, Pause, SkipForward, Trophy, Zap, ZapOff } from "lucide-react"
 import { FloatingShapes } from "./floating-shapes"
 import { Timer } from "./timer"
 import { QuestionDisplay } from "./question-display"
@@ -22,6 +23,9 @@ interface QuizGameProps {
 }
 
 export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" }: QuizGameProps) {
+  // ⏱️ משך השאלה חייב להתאים למה שהשרת שולח ל-quizTimerService.startTimer(...)
+  const QUESTION_SECONDS = 20
+
   const [activeEventName, setActiveEventName] = useState(initialEventName)
   const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null)
   const [questionNumber, setQuestionNumber] = useState(0)
@@ -30,10 +34,16 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
   const [leaderboard, setLeaderboard] = useState<Participant[]>([])
   
   const [isTimerActive, setIsTimerActive] = useState(false)
+  // ⏱️ הזמן הנותר בפועל - מגיע אך ורק משידור /topic/timer של השרת (QuizTimerService).
+  // זהו מקור האמת היחיד, ולכן זהה במדויק אצל המנהל וכל המשתתפים בכל רגע נתון
+  const [timeLeft, setTimeLeft] = useState(QUESTION_SECONDS)
   const [isRevealed, setIsRevealed] = useState(false)
   const [showWinner, setShowWinner] = useState(false)
   const [showBurst, setShowBurst] = useState(false)
   const [gameStarted, setGameStarted] = useState(false)
+
+  // ⏸️ מצב השהיה גלובלי - מגיע מה-WebSocket, ולכן זהה במדויק אצל המנהל וכל המשתתפים
+  const [isPaused, setIsPaused] = useState(false)
   
   const [isAdmin, setIsAdmin] = useState(false)
   const [isAutoMode, setIsAutoMode] = useState(false)
@@ -66,7 +76,9 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
   
   const isAutoModeRef = useRef(isAutoMode)
   const nextQuestionRef = useRef<(() => void) | null>(null)
-  const handleShowWinnerRef = useRef<(() => void) | null>(null)
+  const requestShowWinnerRef = useRef<(() => void) | null>(null)
+  const triggerWinnerOverlayRef = useRef<(() => void) | null>(null)
+  const handleTimerCompleteRef = useRef<(() => void) | null>(null)
 
   useEffect(() => {
     isAutoModeRef.current = isAutoMode
@@ -125,6 +137,7 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
     setStats({ answer1: 0, answer2: 0, answer3: 0, answer4: 0 })
     setIsRevealed(false)
     setIsTimerActive(true)
+    setTimeLeft(QUESTION_SECONDS)
     setShowBurst(true)
     
     bgMusicRef.current?.play()
@@ -146,22 +159,56 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
     setLeaderboard(participants.sort((a, b) => b.score - a.score).slice(0, 10))
   }, [])
   
+  // 🔄 סטטוס המשחק - כולל עכשיו גם PAUSED/RESUMED, ולכן משפיע באותו רגע
+  // על כל מי שמחובר ל-WebSocket הזה (מנהל ומשתתפים כאחד)
   const handleGameStatus = useCallback((status: { status: string, eventName?: string }) => {
     if (!isMountedRef.current) return;
     if (status.status === "STARTED") setGameStarted(true)
+    if (status.status === "PAUSED") setIsPaused(true)
+    if (status.status === "RESUMED") setIsPaused(false)
     if (status.eventName && status.eventName !== activeEventName) {
       setActiveEventName(status.eventName)
     }
   }, [activeEventName])
 
+  // ⏱️ מגיע ישירות משידור /topic/timer של השרת - מקור האמת היחיד לזמן הנותר.
+  // "TIME_UP" מגיע כשה-QuizTimerService בשרת מסיים את הספירה בפועל
+  const handleTimerTick = useCallback((value: number | "TIME_UP") => {
+    if (!isMountedRef.current) return;
+    if (value === "TIME_UP") {
+      handleTimerCompleteRef.current?.()
+    } else {
+      setTimeLeft(value)
+    }
+  }, [])
+
+  // 🏆 עטוף ב-useCallback עם תלויות ריקות כדי שתהיה לו זהות יציבה בין רינדורים -
+  // אחרת ה-useEffect בתוך useQuizWebSocket "רואה" פונקציה חדשה בכל רינדור ומחבר מחדש את ה-WebSocket כל הזמן
+  const handleWinner = useCallback(() => {
+    triggerWinnerOverlayRef.current?.()
+  }, [])
+
   const { isConnected } = useQuizWebSocket({
     serverUrl, onQuestion: handleQuestion, onStats: handleStats, onLiveAnswer: handleLiveAnswer,
     onLeaderboard: handleLeaderboard, onGameStatus: handleGameStatus,
+    onTimerTick: handleTimerTick,
+    onWinner: handleWinner,
   })
+
+  // ⏸️ עצירת/המשך המוזיקה בהתאם למצב ההשהיה הגלובלי (רץ אצל כולם)
+  useEffect(() => {
+    if (!isMountedRef.current) return;
+    if (isPaused) {
+      bgMusicRef.current?.pause()
+    } else if (isTimerActive) {
+      bgMusicRef.current?.play()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPaused])
 
   // === פונקציית קידום שאלה ===
   const nextQuestion = async () => {
-    if (isProcessing || !isAdmin || !isMountedRef.current) return
+    if (isProcessing || !isAdmin || !isMountedRef.current || isPaused) return
     if (autoTimerRef.current) clearTimeout(autoTimerRef.current) 
 
     bgMusicRef.current?.stop();
@@ -184,31 +231,58 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
     }
   }
 
-  // === פונקציית מנצח ===
-  const handleShowWinner = async () => {
-    if (!isAdmin || !isMountedRef.current) return
-    if (autoTimerRef.current) clearTimeout(autoTimerRef.current) 
-
-    bgMusicRef.current?.stop(); Howler.stop();
+  // === פונקציית מנצח (צד המנהל בלבד) ===
+  // לוחצים -> רק מבקשים מהשרת לשדר SHOW ל-/topic/winner לכולם. אין כאן קביעת state מקומי,
+  // כדי שהתצוגה תיפתח אצל המנהל ואצל כל המשתתפים באותו רגע בדיוק (ראה triggerWinnerOverlay למטה)
+  const requestShowWinner = async () => {
+    if (!isAdmin || !isMountedRef.current || isPaused) return
+    if (autoTimerRef.current) clearTimeout(autoTimerRef.current)
 
     try {
-      const response = await fetchWithAuth(`${serverUrl}/api/quiz/leaderboard`);
-      if (!response.ok) throw new Error();
-      let data = await response.json();
-      if (data && !Array.isArray(data)) data = [data];
-      
-      if (data && data.length > 0) {
-        const sortedData = data.sort((a: any, b: any) => b.score - a.score)
-        setLeaderboard(sortedData)
-        setShowWinner(true)
-        applauseSoundRef.current?.play()
-
-        setTimeout(() => {
-          if (!isMountedRef.current) return;
-          setShowWinner(false); 
-          if (isAutoModeRef.current) nextQuestionRef.current?.()
-        }, 3000)
+      const token = localStorage.getItem("adminToken") ?? "admin"
+      // ה-endpoint האמיתי הוא /api/quiz/show-winner (בלי /admin) ודורש פרמטר key בשאילתה
+      const response = await fetchWithAuth(`${serverUrl}/api/quiz/admin/show-winner?key=${encodeURIComponent(token)}`);
+      if (!response.ok) {
+        alert("לא ניתן להציג את המנצח")
       }
+      // התצוגה בפועל תיפתח אצל כולם (כולל המנהל עצמו) כשיגיע שידור
+      // "SHOW" דרך /topic/winner, ולא כאן
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+  // === פונקציית מנצח (רצה אצל כולם: מנהל + משתתפים) ===
+  // מופעלת אך ורק כתגובה לשידור SHOW_WINNER מה-WebSocket, כדי שכולם יראו את המנצח
+  // באותו רגע בדיוק. משתמשת ב-leaderboard שכבר מסונכרן לכולם דרך onLeaderboard,
+  // כך שאין צורך בקריאת REST נוספת (וגם למשתתפים, שאין להם טוקן אדמין, יש גישה לתצוגה)
+  const triggerWinnerOverlay = useCallback(() => {
+    if (!isMountedRef.current) return
+    bgMusicRef.current?.stop(); Howler.stop();
+
+    setShowWinner(true)
+    applauseSoundRef.current?.play()
+
+    // ⏱️ 2 שניות נוספות למתן זמן לצפות במנצח על המסך לפני שממשיכים
+    setTimeout(() => {
+      if (!isMountedRef.current) return;
+      setShowWinner(false);
+      if (isAdmin && isAutoModeRef.current) nextQuestionRef.current?.()
+    }, 5000)
+  }, [isAdmin])
+
+  // === פונקציית השהיה/המשך - שולחת פקודה לשרת, שמשדר PAUSED/RESUMED לכולם ===
+  const togglePause = async () => {
+    if (!isAdmin || !isMountedRef.current) return
+    try {
+      const endpoint = isPaused ? "resume" : "pause"
+      const response = await fetchWithAuth(`${serverUrl}/api/quiz/admin/${endpoint}`);
+      if (!response.ok) {
+        alert("לא ניתן היה לעדכן את מצב ההשהיה")
+        return
+      }
+      // המצב בפועל (isPaused) יתעדכן אצל כולם כשיגיע שידור ה-status מה-WebSocket,
+      // כך שההשהיה קורית באותו רגע בדיוק אצל המנהל וכל המשתתפים
     } catch (error) {
       console.error(error)
     }
@@ -216,9 +290,13 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
 
   useEffect(() => {
     nextQuestionRef.current = nextQuestion
-    handleShowWinnerRef.current = handleShowWinner
+    requestShowWinnerRef.current = requestShowWinner
+    triggerWinnerOverlayRef.current = triggerWinnerOverlay
+    handleTimerCompleteRef.current = handleTimerComplete
   })
 
+  // מופעלת כשמגיע "TIME_UP" משידור /topic/timer של השרת - כלומר הזמן באמת נגמר בשרת,
+  // ולכן קורה אצל כולם (מנהל ומשתתפים) באותו רגע בדיוק
   const handleTimerComplete = useCallback(() => {
     if (!isMountedRef.current) return;
     setIsTimerActive(false)
@@ -228,14 +306,15 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
     buzzerSoundRef.current?.play()
 
     if (isAutoModeRef.current && isAdmin) {
+      // ⏱️ 2 שניות נוספות למתן זמן לצפות בתשובה הנכונה על המסך לפני שממשיכים
       autoTimerRef.current = setTimeout(() => {
         if (!isMountedRef.current) return;
         if (questionsCounterRef.current > 0 && questionsCounterRef.current % 5 === 0) {
-          handleShowWinnerRef.current?.()
+          requestShowWinnerRef.current?.()
         } else {
           nextQuestionRef.current?.()
         }
-      }, 4000)
+      }, 6000)
     }
   }, [isAdmin])
 
@@ -273,6 +352,21 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
           </div>
         </div>
 
+        {/* 🔔 באנר השהיה - מוצג לכולם (מנהל ומשתתפים) כשהמשחק מושהה */}
+        <AnimatePresence>
+          {isPaused && (
+            <motion.div
+              initial={{ y: -60, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              exit={{ y: -60, opacity: 0 }}
+              className="fixed top-2 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-5 py-2 rounded-full bg-yellow-500/20 border border-yellow-400/40 backdrop-blur-md shadow-lg"
+            >
+              <Pause className="w-4 h-4 text-yellow-100" />
+              <span className="text-sm font-bold text-yellow-100 tracking-wide">המשחק מושהה</span>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <div className="flex-1 container mx-auto px-4 flex items-start overflow-hidden">
           <div className="flex flex-row gap-8 w-full items-stretch h-[88vh] -mt-15">
             <div className="flex-[3] flex flex-col justify-start pt-1">
@@ -285,7 +379,7 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
             <div className="flex-1 max-w-[300px] flex flex-col gap-4 py-1 ml-auto">
               <div className="pt-16 flex flex-col gap-4">
                 <div className="relative inline-flex items-center justify-center scale-90">
-                  <Timer seconds={20} isActive={isTimerActive} onComplete={handleTimerComplete} key={questionNumber} />
+                  <Timer totalSeconds={QUESTION_SECONDS} timeLeft={timeLeft} isPaused={isPaused} key={questionNumber} />
                 </div>
               </div>
 
@@ -326,23 +420,71 @@ export function QuizGame({ serverUrl, eventName: initialEventName = "Live Quiz" 
           <LiveTicker answers={liveAnswers} />
         </div>
 
-        {/* פאנל השליטה העדין */}
+        {/* 🎛️ פאנל השליטה - צבעים זוהרים וברורים, מצב מופעל/כבוי בולט לעין */}
         {isAdmin && (
-          <div className="fixed left-6 top-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-3 bg-black/20 p-2.5 rounded-full backdrop-blur-md border border-white/10 shadow-lg">
+          <div className="fixed left-6 top-1/2 -translate-y-1/2 z-[100] flex flex-col items-center gap-3 bg-black/40 p-3 rounded-[2rem] backdrop-blur-xl border border-white/10 shadow-2xl">
             {!gameStarted ? (
-              <button onClick={startGame} className="w-10 h-10 rounded-full bg-green-500/20 hover:bg-green-500/40 border border-green-500/30 text-green-100 flex items-center justify-center transition-all duration-300 hover:shadow-[0_0_10px_rgba(34,197,94,0.3)]" title="Start Game">
-                <span className="text-[10px] font-bold tracking-wider">GO</span>
+              <button
+                onClick={startGame}
+                title="התחל משחק"
+                className="group w-12 h-12 rounded-full bg-green-500 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-green-400 active:scale-95 shadow-[0_0_20px_rgba(34,197,94,0.8)] ring-2 ring-green-300/60"
+              >
+                <Play className="w-5 h-5 fill-current transition-transform group-hover:scale-110" />
               </button>
             ) : (
               <div className="flex flex-col gap-3 items-center">
-                <button onClick={() => setIsAutoMode(!isAutoMode)} className={`w-10 h-10 rounded-full flex items-center justify-center transition-all duration-300 border ${isAutoMode ? "bg-yellow-500/20 hover:bg-yellow-500/40 border-yellow-500/30 text-yellow-100 hover:shadow-[0_0_10px_rgba(234,179,8,0.3)]" : "bg-white/5 hover:bg-white/15 border-white/10 text-slate-400"}`} title="Toggle Auto/Manual Mode">
-                  <span className="text-[9px] font-bold tracking-wider">{isAutoMode ? "AUTO" : "MANU"}</span>
+                {/* ⏸️ השהיה/המשך - צהוב זוהר ובולט כשמושהה, כחול-אפור רגוע כשפעיל */}
+                <button
+                  onClick={togglePause}
+                  title={isPaused ? "המשך משחק" : "השהה משחק"}
+                  className={`group w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 ${
+                    isPaused
+                      ? "bg-yellow-400 text-black shadow-[0_0_22px_rgba(250,204,21,0.9)] ring-2 ring-yellow-200/70 animate-pulse"
+                      : "bg-slate-700/70 text-slate-200 border border-white/10 hover:bg-slate-600/80 shadow-[0_0_8px_rgba(255,255,255,0.15)]"
+                  }`}
+                >
+                  {isPaused ? (
+                    <Play className="w-5 h-5 fill-current transition-transform group-hover:scale-110" />
+                  ) : (
+                    <Pause className="w-5 h-5 fill-current transition-transform group-hover:scale-110" />
+                  )}
                 </button>
-                <button onClick={nextQuestion} disabled={isProcessing} className="w-10 h-10 rounded-full bg-blue-500/20 hover:bg-blue-500/40 border border-blue-500/30 text-blue-100 flex items-center justify-center transition-all duration-300 hover:shadow-[0_0_10px_rgba(59,130,246,0.3)] disabled:opacity-30 disabled:hover:shadow-none" title="Next Question">
-                  <span className="text-[9px] font-bold tracking-wider">NEXT</span>
+
+                {/* 🔁 מצב אוטומטי/ידני - סגול-פוקסיה זוהר כשאוטומטי, אפור עמום כשידני */}
+                <button
+                  onClick={() => setIsAutoMode(!isAutoMode)}
+                  title={isAutoMode ? "מצב אוטומטי (לחץ למעבר לידני)" : "מצב ידני (לחץ למעבר לאוטומטי)"}
+                  className={`group w-12 h-12 rounded-full flex items-center justify-center transition-all duration-300 hover:scale-110 active:scale-95 ${
+                    isAutoMode
+                      ? "bg-fuchsia-500 text-white shadow-[0_0_22px_rgba(217,70,239,0.85)] ring-2 ring-fuchsia-300/70"
+                      : "bg-slate-700/70 text-slate-300 border border-white/10 hover:bg-slate-600/80 shadow-[0_0_8px_rgba(255,255,255,0.15)]"
+                  }`}
+                >
+                  {isAutoMode ? (
+                    <Zap className="w-5 h-5 fill-current transition-transform group-hover:scale-110" />
+                  ) : (
+                    <ZapOff className="w-5 h-5 transition-transform group-hover:scale-110" />
+                  )}
                 </button>
-                <button onClick={handleShowWinner} className="w-10 h-10 rounded-full bg-purple-500/20 hover:bg-purple-500/40 border border-purple-500/30 text-purple-100 flex items-center justify-center transition-all duration-300 hover:shadow-[0_0_10px_rgba(168,85,247,0.3)]" title="Show Winner">
-                  <span className="text-[9px] font-bold tracking-wider">WIN</span>
+
+                {/* ⏭️ שאלה הבאה - כחול-ציאן זוהר, תמיד פעיל כשהמשחק לא מושהה */}
+                <button
+                  onClick={nextQuestion}
+                  disabled={isProcessing || isPaused}
+                  title="שאלה הבאה"
+                  className="group w-12 h-12 rounded-full bg-cyan-500 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-cyan-400 active:scale-95 shadow-[0_0_20px_rgba(34,211,238,0.8)] ring-2 ring-cyan-300/60 disabled:opacity-25 disabled:shadow-none disabled:ring-0 disabled:hover:scale-100"
+                >
+                  <SkipForward className="w-5 h-5 fill-current transition-transform group-hover:scale-110" />
+                </button>
+
+                {/* 🏆 הצגת מנצח - ורוד זוהר, תמיד בולט כשזמין */}
+                <button
+                  onClick={requestShowWinner}
+                  disabled={isPaused}
+                  title="הצג מנצח"
+                  className="group w-12 h-12 rounded-full bg-pink-500 text-white flex items-center justify-center transition-all duration-300 hover:scale-110 hover:bg-pink-400 active:scale-95 shadow-[0_0_20px_rgba(236,72,153,0.8)] ring-2 ring-pink-300/60 disabled:opacity-25 disabled:shadow-none disabled:ring-0 disabled:hover:scale-100"
+                >
+                  <Trophy className="w-5 h-5 transition-transform group-hover:scale-110" />
                 </button>
               </div>
             )}

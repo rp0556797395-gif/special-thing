@@ -29,7 +29,7 @@ export interface Participant {
 }
 
 export interface GameStatus {
-  status: "STARTED" | "WAITING" | "ENDED"
+  status: "STARTED" | "WAITING" | "ENDED" | "PAUSED" | "RESUMED"
   question?: number
 }
 
@@ -40,6 +40,10 @@ interface UseQuizWebSocketOptions {
   onLiveAnswer?: (answer: string) => void
   onLeaderboard?: (participants: Participant[]) => void
   onGameStatus?: (status: GameStatus) => void
+  // ⏱️ הזמן הנותר האמיתי כפי שמשודר מה-QuizTimerService בשרת (מספר), או "TIME_UP" בסיום
+  onTimerTick?: (value: number | "TIME_UP") => void
+  // 🏆 מגיע מ-/topic/winner כשהמנהל לוחץ על "הצג מנצח" - זהה לכולם באותו רגע
+  onWinner?: () => void
 }
 
 export function useQuizWebSocket({
@@ -49,6 +53,8 @@ export function useQuizWebSocket({
   onLiveAnswer,
   onLeaderboard,
   onGameStatus,
+  onTimerTick,
+  onWinner,
 }: UseQuizWebSocketOptions) {
   const clientRef = useRef<Client | null>(null)
   const [isConnected, setIsConnected] = useState(false)
@@ -89,6 +95,25 @@ export function useQuizWebSocket({
           const participants = JSON.parse(message.body)
           onLeaderboard?.(participants as Participant[])
         })
+
+        // ⏱️ Subscribe to the authoritative server-side countdown.
+        // Body is either a plain number (seconds left) or the string "TIME_UP"
+        client.subscribe("/topic/timer", (message) => {
+          const body = message.body
+          if (body === "TIME_UP") {
+            onTimerTick?.("TIME_UP")
+          } else {
+            const seconds = Number(body)
+            if (!Number.isNaN(seconds)) {
+              onTimerTick?.(seconds)
+            }
+          }
+        })
+
+        // 🏆 Subscribe to the winner broadcast (plain "SHOW" body)
+        client.subscribe("/topic/winner", () => {
+          onWinner?.()
+        })
       },
       onDisconnect: () => {
         setIsConnected(false)
@@ -107,7 +132,7 @@ export function useQuizWebSocket({
         clientRef.current.deactivate()
       }
     }
-  }, [serverUrl, onQuestion, onStats, onLiveAnswer, onLeaderboard, onGameStatus])
+  }, [serverUrl, onQuestion, onStats, onLiveAnswer, onLeaderboard, onGameStatus, onTimerTick, onWinner])
 
   return { isConnected }
 }
