@@ -59,6 +59,8 @@ export function AdminPanel({ serverUrl }: AdminPanelProps) {
     e.preventDefault()
     
     try {
+      const token = localStorage.getItem("adminToken");
+
       if (editingQuestion?.id) {
         await fetch(`${serverUrl}/api/questions/update/${editingQuestion.id}`, {
           method: "PUT",
@@ -158,7 +160,6 @@ export function AdminPanel({ serverUrl }: AdminPanelProps) {
           </motion.button>
         </div>
 
-        {/* Question Form Modal */}
         <AnimatePresence>
           {showForm && (
             <motion.div

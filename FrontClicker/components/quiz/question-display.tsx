@@ -36,7 +36,7 @@ export function QuestionDisplay({
           }}
         />
         <p className="whitespace-pre-line text-center text-xl md:text-3xl font-bold leading-relaxed bg-gradient-to-r from-pink-400 to-cyan-400 bg-clip-text text-transparent p-4">
-           {`המשחק מתחיל בעוד 30 שניות!
+           {`המשחק מתחיל   !
   
   נא להתקשר למספר:
   077-2263251📞
