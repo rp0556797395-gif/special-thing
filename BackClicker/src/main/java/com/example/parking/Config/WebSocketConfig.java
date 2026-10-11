@@ -1,5 +1,4 @@
 package com.example.parking.Config;
-
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.messaging.simp.config.MessageBrokerRegistry;
@@ -13,19 +12,13 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
 
     @Override
     public void configureMessageBroker(MessageBrokerRegistry config) {
-        // השרת ישלח הודעות ללקוח דרך נתיבים שמתחילים ב- /topic
         config.enableSimpleBroker("/topic");
-        // הלקוח ישלח הודעות לשרת דרך נתיבים שמתחילים ב- /app
         config.setApplicationDestinationPrefixes("/app");
-
     }
-
-
     @Override
     public void registerStompEndpoints(StompEndpointRegistry registry) {
-        // זוהי נקודת החיבור הראשונית של ה-React לשרת
         registry.addEndpoint("/ws-quiz")
-                .setAllowedOrigins("http://localhost:3000", "https://front-clicker-service.onrender.com")// מאפשר גישה מכל דומיין (חשוב לפיתוח)
+                .setAllowedOrigins("http://localhost:3000", "https://front-clicker-service.onrender.com")
                 .withSockJS();
     }
 }
